@@ -1,0 +1,10 @@
+{
+  "model": "gpt-4o",
+  "sql_only": true,
+  "dialect": "postgres",
+  "temp_prefix": "tmp_",
+  "allowed_statements": ["Select", "Union", "Create"],
+  "allowed_sql_functions": ["count", "sum", "avg", "min", "max", "coalesce", "cast", "round", "lower", "upper", "date_trunc", "row_number"],
+  "allowed_functions": [],
+  "allowed_imports": []
+}
