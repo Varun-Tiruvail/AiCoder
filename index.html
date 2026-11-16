@@ -1,0 +1,59 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>NB Studio</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--ink:#1d2a2a;--mute:#6b7777;--line:#d9dcd6;--acc:#1f6f6b;--hi:#fff3c4}
+@media(prefers-color-scheme:dark){:root{--bg:#161b1b;--panel:#1e2525;--ink:#e6ecea;--mute:#8d9b99;--line:#2d3737;--acc:#4fb3ad;--hi:#4a4220}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{font:14px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--ink);display:grid;grid-template-columns:250px 1fr 340px;gap:8px;padding:8px;overflow:hidden}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+h3{margin:0;padding:8px 10px;font-size:13px;border-bottom:1px solid var(--line)}
+.col{display:flex;flex-direction:column;gap:8px;min-height:0}.body{padding:8px;overflow:auto;flex:1;min-height:0}
+button{font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:3px 8px;cursor:pointer}
+button:hover{border-color:var(--acc)}input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px;width:100%}
+.row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}pre{margin:6px 0 0;white-space:pre-wrap;font:12px ui-monospace,monospace;color:var(--mute)}
+.cell{display:flex;gap:6px;margin-bottom:8px}.cell.flash textarea{background:var(--hi)}
+.idx{font:12px ui-monospace,monospace;color:var(--acc);width:34px;text-align:right;padding-top:6px;flex:none}
+.cell textarea{font:13px/1.4 ui-monospace,monospace;min-height:60px;resize:vertical}
+.task{display:flex;gap:6px;align-items:flex-start;padding:3px 0}.task.done span{text-decoration:line-through;color:var(--mute)}
+.task span{flex:1}#log{flex:1;overflow:auto;padding:8px}.m{margin-bottom:8px;white-space:pre-wrap}.m.u{color:var(--acc)}
+#left{display:flex;flex-direction:column;gap:8px;min-height:0}
+@media(max-width:900px){body{grid-template-columns:1fr;overflow:auto}}
+</style></head><body>
+<div class="col" id="left">
+ <section style="flex:3"><h3>Git</h3><div class="body">
+  <div class="row"><button data-g="status">Status</button><button data-g="pull">Pull</button><button data-g="push">Push</button><button data-g="log">Log</button><button data-g="diff">Diff</button><button data-g="branches">Branches</button><button data-g="init">Init</button></div>
+  <input id="garg" placeholder="Message or branch name">
+  <div class="row" style="margin-top:6px"><button data-g="commit">Commit all</button><button data-g="merge">Merge</button><button data-g="checkout">Checkout</button><button data-g="newbranch">New branch</button></div>
+  <pre id="gout"></pre></div></section>
+ <section style="flex:2"><h3>Memory</h3><div class="body">
+  <select id="mfile" style="width:100%;margin-bottom:6px"></select>
+  <textarea id="mtext" rows="8"></textarea><div class="row" style="margin-top:6px"><button id="msave">Save</button></div></div></section>
+</div>
+<section><h3>Notebook <span style="color:var(--mute);font-weight:400">· code is never run</span></h3><div class="body" id="nb"></div></section>
+<div class="col">
+ <section style="flex:2"><h3>Tasks</h3><div class="body"><div class="row"><input id="goal" placeholder="Goal, then Plan" style="flex:1;width:auto"><button id="plan">Plan</button></div><div id="tasks"></div></div></section>
+ <section style="flex:3"><h3>Chat</h3><div id="log"></div>
+  <div style="padding:8px;border-top:1px solid var(--line)"><textarea id="msg" rows="2" placeholder="e.g. cell 3: use a bar chart. Or: task 2"></textarea></div></section>
+</div>
+<script>
+const $=s=>document.querySelector(s), j=(u,m='GET',b)=>fetch(u,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(r=>r.json());
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let T=[],flash=0;
+function drawCells(cs){$('#nb').innerHTML=cs.map(c=>`<div class="cell${c.i==flash?' flash':''}"><div class="idx">[${c.i}]</div><textarea data-i="${c.i}">${esc(c.source)}</textarea><button data-del="${c.i}" title="Delete cell">✕</button></div>`).join('')||'<p style="color:var(--mute)">No cells yet. Plan tasks, then chat "task 1".</p>';
+ document.querySelectorAll('#nb textarea').forEach(t=>{t.style.height=t.scrollHeight+'px';t.onchange=()=>j('/api/cell/'+t.dataset.i,'PUT',{source:t.value})});
+ document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{await j('/api/cell/'+b.dataset.del,'DELETE');load()});
+ const f=document.querySelector('.flash');f&&f.scrollIntoView({block:'center'})}
+function drawTasks(){$('#tasks').innerHTML=T.map((t,i)=>`<div class="task${t.done?' done':''}"><input type="checkbox" style="width:auto" data-t="${i}" ${t.done?'checked':''} title="Approve"><span>${i+1}. ${esc(t.text)}</span><button data-w="${i+1}">Write</button></div>`).join('')||'<p style="color:var(--mute)">No tasks yet.</p>';
+ document.querySelectorAll('[data-t]').forEach(c=>c.onchange=()=>{T[c.dataset.t].done=c.checked;j('/api/tasks','PUT',T);drawTasks()});
+ document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>send('task '+b.dataset.w))}
+async function load(){const s=await j('/api/state');T=s.tasks;drawCells(s.cells);drawTasks();
+ const cur=$('#mfile').value;$('#mfile').innerHTML=s.memory.map(m=>`<option>${m}</option>`).join('');if(cur)$('#mfile').value=cur;loadMem()}
+async function loadMem(){const f=$('#mfile').value;if(f)$('#mtext').value=(await j('/api/memory/'+f)).text}
+$('#mfile').onchange=loadMem;$('#msave').onclick=()=>j('/api/memory/'+$('#mfile').value,'PUT',{text:$('#mtext').value});
+document.querySelectorAll('[data-g]').forEach(b=>b.onclick=async()=>{$('#gout').textContent='…';$('#gout').textContent=(await j('/api/git','POST',{cmd:b.dataset.g,arg:$('#garg').value})).out;if(['pull','merge','checkout'].includes(b.dataset.g))load()});
+$('#plan').onclick=async()=>{if(!$('#goal').value)return;$('#plan').disabled=true;T=(await j('/api/plan','POST',{goal:$('#goal').value})).tasks||[];drawTasks();$('#plan').disabled=false};
+function say(t,c){const d=document.createElement('div');d.className='m '+c;d.textContent=t;$('#log').append(d);$('#log').scrollTop=1e9}
+async function send(m){say(m,'u');say('…','a');const r=await j('/api/chat','POST',{message:m});$('#log').lastChild.remove();say(r.reply,'a');if(r.cells){flash=r.cell;drawCells(r.cells);setTimeout(()=>flash=0,2500)}}
+$('#msg').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const m=e.target.value.trim();if(m){e.target.value='';send(m)}}};
+load();
+</script></body></html>
